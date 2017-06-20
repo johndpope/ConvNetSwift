@@ -11,7 +11,7 @@
 import Foundation
 
 protocol LossLayer: Layer {
-    func backward(y: Int) -> Double
+    func backward(_ y: Int) -> Double
 }
 
 struct SoftmaxLayerOpt: LayerInOptProtocol {
@@ -41,26 +41,26 @@ class SoftmaxLayer: LossLayer {
     
     init(opt: SoftmaxLayerOpt) {
         // computed
-        self.numInputs = opt.inSx * opt.inSy * opt.inDepth
-        self.outDepth = self.numInputs
-        self.outSx = 1
-        self.outSy = 1
-        self.layerType = .Softmax
+        numInputs = opt.inSx * opt.inSy * opt.inDepth
+        outDepth = numInputs
+        outSx = 1
+        outSy = 1
+        layerType = .Softmax
     }
     
-    func forward(inout V: Vol, isTraining: Bool) -> Vol {
-        self.inAct = V
+    func forward(_ V: inout Vol, isTraining: Bool) -> Vol {
+        inAct = V
         
-        let A = Vol(sx: 1, sy: 1, depth: self.outDepth, c: 0.0)
+        let A = Vol(sx: 1, sy: 1, depth: outDepth, c: 0.0)
         
         // compute max activation
         var a_s = V.w
-        let amax = V.w.maxElement()!
+        let amax = V.w.max()!
         
         // compute exponentials (carefully to not blow up)
-        var es = zerosDouble(self.outDepth)
+        var es = ArrayUtils.zerosDouble(outDepth)
         var esum = 0.0
-        for i in 0 ..< self.outDepth {
+        for i in 0 ..< outDepth {
             
             let e = exp(a_s[i] - amax)
             esum += e
@@ -68,60 +68,60 @@ class SoftmaxLayer: LossLayer {
         }
         
         // normalize and output to sum to one
-        for i in 0 ..< self.outDepth {
+        for i in 0 ..< outDepth {
             
             es[i] /= esum
             A.w[i] = es[i]
         }
         
         self.es = es // save these for backprop
-        self.outAct = A
-        return self.outAct!
+        outAct = A
+        return outAct!
     }
     
-    func backward(y: Int) -> Double {
+    func backward(_ y: Int) -> Double {
         
         // compute and accumulate gradient wrt weights and bias of this layer
-        guard let x = self.inAct else {
-            fatalError("self.inAct is nil")
+        guard let x = inAct else {
+            fatalError("inAct is nil")
         }
-        x.dw = zerosDouble(x.w.count) // zero out the gradient of input Vol
+        x.dw = ArrayUtils.zerosDouble(x.w.count) // zero out the gradient of input Vol
         
-        for i in 0 ..< self.outDepth {
+        for i in 0 ..< outDepth {
             
             let indicator = i == y ? 1.0 : 0.0
-            let mul = -(indicator - self.es[i])
+            let mul = -(indicator - es[i])
             x.dw[i] = mul
         }
         // loss is the class negative log likelihood
-        return -log(self.es[y])
+        return -log(es[y])
     }
     
     func getParamsAndGrads() -> [ParamsAndGrads] {
         return []
     }
     
-    func assignParamsAndGrads(paramsAndGrads: [ParamsAndGrads]) {
+    func assignParamsAndGrads(_ paramsAndGrads: [ParamsAndGrads]) {
         
     }
     
     func toJSON() -> [String: AnyObject] {
         var json: [String: AnyObject] = [:]
         
-        json["outDepth"] = self.outDepth
-        json["outSx"] = self.outSx
-        json["outSy"] = self.outSy
-        json["layerType"] = self.layerType.rawValue
-        json["numInputs"] = self.numInputs
+        json["outDepth"] = outDepth as AnyObject?
+        json["outSx"] = outSx as AnyObject?
+        json["outSy"] = outSy as AnyObject?
+        json["layerType"] = layerType.rawValue as AnyObject?
+        json["numInputs"] = numInputs as AnyObject?
         return json
     }
     //
     //    func fromJSON(json: [String: AnyObject]) -> () {
-    //        self.outDepth = json["outDepth"]
-    //        self.outSx = json["outSx"]
-    //        self.outSy = json["outSy"]
-    //        self.layerType = json["layerType"]
-    //        self.numInputs = json["numInputs"]
+    //        outDepth = json["outDepth"]
+    //        outSx = json["outSx"]
+    //        outSy = json["outSy"]
+    //        layerType = json["layerType"]
+    //        numInputs = json["numInputs"]
     //    }
 }
 
@@ -139,9 +139,9 @@ struct RegressionLayerOpt: LayerInOptProtocol {
     
     init(numNeurons: Int) {
         // warning: creativity!
-        self.inSx = 1
-        self.inSy = 1
-        self.inDepth = 1
+        inSx = 1
+        inSy = 1
+        inDepth = 1
         self.numNeurons = numNeurons
         
     }
@@ -160,16 +160,16 @@ class RegressionLayer: LossLayer {
     init(opt: RegressionLayerOpt) {
         
         // computed
-        self.numInputs = opt.inSx * opt.inSy * opt.inDepth
-        self.outDepth = self.numInputs
-        self.outSx = 1
-        self.outSy = 1
-        self.layerType = .Regression
+        numInputs = opt.inSx * opt.inSy * opt.inDepth
+        outDepth = numInputs
+        outSx = 1
+        outSy = 1
+        layerType = .Regression
     }
 
-    func forward(inout V: Vol, isTraining: Bool) -> Vol {
-        self.inAct = V
-        self.outAct = V
+    func forward(_ V: inout Vol, isTraining: Bool) -> Vol {
+        inAct = V
+        outAct = V
         return V // identity function
     }
 
@@ -178,29 +178,29 @@ class RegressionLayer: LossLayer {
     // or it can be a struct {dim: i, val: x} where we only want to
     // regress on dimension i and asking it to have value x
     
-    func backward(y: [Double]) -> Double {
+    func backward(_ y: [Double]) -> Double {
         
         // compute and accumulate gradient wrt weights and bias of this layer
-        guard let x = self.inAct else {
-            fatalError("self.inAct is nil")
+        guard let x = inAct else {
+            fatalError("inAct is nil")
         }
-        x.dw = zerosDouble(x.w.count) // zero out the gradient of input Vol
+        x.dw = ArrayUtils.zerosDouble(x.w.count) // zero out the gradient of input Vol
         var loss = 0.0
-        for i in 0 ..< self.outDepth {
+        for i in 0 ..< outDepth {
             let dy = x.w[i] - y[i]
             x.dw[i] = dy
             loss += 0.5*dy*dy
         }
-        self.inAct = x
+        inAct = x
         return loss
     }
     
-    func backward(y: Double) -> Double {
+    func backward(_ y: Double) -> Double {
         // compute and accumulate gradient wrt weights and bias of this layer
-        guard let x = self.inAct else {
-            fatalError("self.inAct is nil")
+        guard let x = inAct else {
+            fatalError("inAct is nil")
         }
-        x.dw = zerosDouble(x.w.count) // zero out the gradient of input Vol
+        x.dw = ArrayUtils.zerosDouble(x.w.count) // zero out the gradient of input Vol
         var loss = 0.0
         // lets hope that only one number is being regressed
         let dy = x.w[0] - y
@@ -209,7 +209,7 @@ class RegressionLayer: LossLayer {
         return loss
     }
     
-    func backward(y: Int) -> Double {
+    func backward(_ y: Int) -> Double {
         return backward(Double(y))
     }
     
@@ -218,12 +218,12 @@ class RegressionLayer: LossLayer {
         var val: Double
     }
     
-    func backward(y: Pair) -> Double {
+    func backward(_ y: Pair) -> Double {
         // compute and accumulate gradient wrt weights and bias of this layer
-        guard let x = self.inAct else {
-            fatalError("self.inAct is nil")
+        guard let x = inAct else {
+            fatalError("inAct is nil")
         }
-        x.dw = zerosDouble(x.w.count) // zero out the gradient of input Vol
+        x.dw = ArrayUtils.zerosDouble(x.w.count) // zero out the gradient of input Vol
         var loss = 0.0
         // assume it is a struct with entries .dim and .val
         // and we pass gradient only along dimension dim to be equal to val
@@ -239,26 +239,26 @@ class RegressionLayer: LossLayer {
         return []
     }
     
-    func assignParamsAndGrads(paramsAndGrads: [ParamsAndGrads]) {
+    func assignParamsAndGrads(_ paramsAndGrads: [ParamsAndGrads]) {
         
     }
     
     func toJSON() -> [String: AnyObject] {
         var json: [String: AnyObject] = [:]
-        json["outDepth"] = self.outDepth
-        json["outSx"] = self.outSx
-        json["outSy"] = self.outSy
-        json["layerType"] = self.layerType.rawValue
-        json["numInputs"] = self.numInputs
+        json["outDepth"] = outDepth as AnyObject?
+        json["outSx"] = outSx as AnyObject?
+        json["outSy"] = outSy as AnyObject?
+        json["layerType"] = layerType.rawValue as AnyObject?
+        json["numInputs"] = numInputs as AnyObject?
         return json
     }
     //
     //    func fromJSON(json: [String: AnyObject]) -> () {
-    //        self.outDepth = json["outDepth"]
-    //        self.outSx = json["outSx"]
-    //        self.outSy = json["outSy"]
-    //        self.layerType = json["layerType"]
-    //        self.numInputs = json["numInputs"]
+    //        outDepth = json["outDepth"]
+    //        outSx = json["outSx"]
+    //        outSy = json["outSy"]
+    //        layerType = json["layerType"]
+    //        numInputs = json["numInputs"]
     //    }
 }
 
@@ -283,27 +283,27 @@ class SVMLayer: LossLayer {
     
     init(opt: SVMLayerOpt){
         // computed
-        self.numInputs = opt.inSx * opt.inSy * opt.inDepth
-        self.outDepth = self.numInputs
-        self.outSx = 1
-        self.outSy = 1
-        self.layerType = .SVM
+        numInputs = opt.inSx * opt.inSy * opt.inDepth
+        outDepth = numInputs
+        outSx = 1
+        outSy = 1
+        layerType = .SVM
     }
     
-    func forward(inout V: Vol, isTraining: Bool) -> Vol {
-        self.inAct = V
-        self.outAct = V // nothing to do, output raw scores
+    func forward(_ V: inout Vol, isTraining: Bool) -> Vol {
+        inAct = V
+        outAct = V // nothing to do, output raw scores
         return V
     }
     
-    func backward(y: Int) -> Double {
+    func backward(_ y: Int) -> Double {
         
         // compute and accumulate gradient wrt weights and bias of this layer
-        guard let x = self.inAct else {
-            fatalError("self.inAct is nil")
+        guard let x = inAct else {
+            fatalError("inAct is nil")
         }
         
-        x.dw = zerosDouble(x.w.count) // zero out the gradient of input Vol
+        x.dw = ArrayUtils.zerosDouble(x.w.count) // zero out the gradient of input Vol
         
         // we're using structured loss here, which means that the score
         // of the ground truth should be higher than the score of any other
@@ -311,18 +311,18 @@ class SVMLayer: LossLayer {
         let yscore = x.w[y] // score of ground truth
         let margin = 1.0
         var loss = 0.0
-        for i in 0 ..< self.outDepth {
+        for i in 0 ..< outDepth {
             
-            if(y == i) { continue }
+            if y == i { continue }
             let ydiff = -yscore + x.w[i] + margin
-            if(ydiff > 0) {
+            if ydiff > 0 {
                 // violating dimension, apply loss
                 x.dw[i] += 1
                 x.dw[y] -= 1
                 loss += ydiff
             }
         }
-        self.inAct = x
+        inAct = x
         return loss
     }
     
@@ -330,26 +330,26 @@ class SVMLayer: LossLayer {
         return []
     }
     
-    func assignParamsAndGrads(paramsAndGrads: [ParamsAndGrads]) {
+    func assignParamsAndGrads(_ paramsAndGrads: [ParamsAndGrads]) {
         
     }
     
     func toJSON() -> [String: AnyObject] {
         var json: [String: AnyObject] = [:]
-        json["outDepth"] = self.outDepth
-        json["outSx"] = self.outSx
-        json["outSy"] = self.outSy
-        json["layerType"] = self.layerType.rawValue
-        json["numInputs"] = self.numInputs
+        json["outDepth"] = outDepth as AnyObject?
+        json["outSx"] = outSx as AnyObject?
+        json["outSy"] = outSy as AnyObject?
+        json["layerType"] = layerType.rawValue as AnyObject?
+        json["numInputs"] = numInputs as AnyObject?
         return json
     }
     //
     //    func fromJSON(json: [String: AnyObject]) -> () {
-    //        self.outDepth = json["outDepth"]
-    //        self.outSx = json["outSx"]
-    //        self.outSy = json["outSy"]
-    //        self.layerType = json["layerType"]
-    //        self.numInputs = json["numInputs"]
+    //        outDepth = json["outDepth"]
+    //        outSx = json["outSx"]
+    //        outSy = json["outSy"]
+    //        layerType = json["layerType"]
+    //        numInputs = json["numInputs"]
     //    }
 }
 
